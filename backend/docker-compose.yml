@@ -12,32 +12,76 @@ services:
       - postgres_quotes_db
     networks:
       - eg_network
+    volumes:
+      - ./secrets/backend_eg-pg_password.txt:/run/secrets/pg_password.txt:ro
+    entrypoint: >
+      sh -c 'export SPRING_DATASOURCE_PASSWORD=$$(cat /run/secrets/pg_password.txt) && exec java -jar app.jar'
+
 
   postgres_quotes_db:
     image: postgres:17.2-alpine
+    container_name: postgres-quotes-db
     restart: always
     environment:
-      POSTGRES_DB: 'quotesDb'
-      POSTGRES_USER_FILE: /run/secrets/eg-pg_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/eg-pg_password
+      POSTGRES_DB: quotesDb
+      POSTGRES_USER: postgres
     ports:
       - '5066:5432'
     volumes:
+      - ./secrets/backend_eg-pg_password.txt:/run/secrets/pg_password.txt:ro
       - eg-db-data:/var/lib/postgresql/data
-    secrets:
-      - eg-pg_user
-      - eg-pg_password
+    networks:
+      - eg_network
+    entrypoint: >
+      sh -c 'export POSTGRES_PASSWORD=$$(cat /run/secrets/pg_password.txt) && exec docker-entrypoint.sh postgres'
+    
+  eg-nginx-proxy:
+    image: nginx:alpine
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - certs:/etc/letsencrypt
+      - ./nginx/www:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - eg_spring_app
+      - eg_certbot
     networks:
       - eg_network
 
+  eg_certbot:
+    image: certbot/certbot
+    volumes:
+      - certs:/etc/letsencrypt
+      - ./nginx/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'"
+    networks:
+      - eg_network
+    depends_on:
+      - eg_spring_app
+
+
+  eg_duckdns-updater:
+    image: alpine:latest
+    command: [ "/bin/sh", "-c", "while true; do wget -qO- \"https://www.duckdns.org/update?domains=eg-quotes&token=24267485-4144-497c-b784-c3c7bb074cef&ip=\"; sleep 300; done" ]
+    environment:
+      - DUCKDNS_DOMAIN
+      - DUCKDNS_TOKEN
+    networks:
+      - eg_network
+    depends_on:
+      - eg-nginx-proxy
+
 volumes:
+  certs:
   eg-db-data:
 
 secrets:
   eg-pg_user:
-    file: ./secrets/eg-pg_user.txt
+    file: ./secrets/backend_eg-pg_user.txt
   eg-pg_password:
-    file: ./secrets/eg-pg_password.txt
+    file: ./secrets/backend_eg-pg_password.txt
 
 networks:
   eg_network:
