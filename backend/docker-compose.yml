@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  eg_spring_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spring-quotes-app
+    ports:
+      - '8080:8080'
+    depends_on:
+      - postgres_quotes_db
+    networks:
+      - eg_network
+
+  postgres_quotes_db:
+    image: postgres:17.2-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: 'quotesDb'
+      POSTGRES_USER_FILE: /run/secrets/eg-pg_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/eg-pg_password
+    ports:
+      - '5066:5432'
+    volumes:
+      - eg-db-data:/var/lib/postgresql/data
+    secrets:
+      - eg-pg_user
+      - eg-pg_password
+    networks:
+      - eg_network
+
+volumes:
+  eg-db-data:
+
+secrets:
+  eg-pg_user:
+    file: ./secrets/eg-pg_user.txt
+  eg-pg_password:
+    file: ./secrets/eg-pg_password.txt
+
+networks:
+  eg_network:
+    driver: bridge
