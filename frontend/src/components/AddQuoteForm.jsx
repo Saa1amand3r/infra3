@@ -10,7 +10,7 @@ const AddQuoteForm = ({setReloadQuotes}) => {
 
         try {
             console.log(quote);
-            await axios.post("http://spring-quotes-app:8080/quotes", quote);
+            await axios.post("/quotes", quote);
             setQuoteText("");
             setAuthor("");
             setReloadQuotes(true);
