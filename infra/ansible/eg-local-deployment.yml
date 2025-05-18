@@ -1,0 +1,71 @@
+- name: Local Deployment of Quotes app with HTTPS
+  hosts: localhost
+  connection: local
+  become: false
+
+  vars:
+    repo_dir: "{{ lookup('env', 'PWD') }}"
+    nginx_container: infra3proj-eg-nginx-proxy-1
+    certbot_container: infra3proj-eg_certbot-1
+
+  tasks:
+    - name: Ensure Docker Compose is installed
+      command: docker compose version
+      register: compose_check
+      failed_when: compose_check.rc != 0
+      changed_when: false
+
+    - name: Start Docker containers
+      command: docker compose up -d
+      args:
+        chdir: "{{ repo_dir }}"
+      register: compose_up
+      retries: 3
+      delay: 5
+      until: compose_up.rc == 0
+
+    - name: Wait for Nginx container to be up
+      shell: |
+        until docker exec {{ nginx_container }} nginx -v > /dev/null 2>&1; do
+          echo "Waiting for nginx container..."
+          sleep 3
+        done
+      retries: 10
+      delay: 3
+      register: nginx_ready
+      until: nginx_ready.rc == 0
+
+    - name: Template pre-HTTPS Nginx config
+      template:
+        src: temp/beforeCert
+        dest: /tmp/nginx-before.conf
+
+    - name: Copy pre-HTTPS config into Nginx
+      command: docker cp /tmp/nginx-before.conf {{ nginx_container }}:/etc/nginx/nginx.conf
+
+    - name: Reload Nginx with HTTP config
+      command: docker exec {{ nginx_container }} nginx -s reload
+
+    - name: Create folder for ACME challenge inside Nginx
+      command: docker exec {{ nginx_container }} sh -c "mkdir -p /var/www/certbot/.well-known/acme-challenge"
+
+    - name: Generate self-signed certificate
+      command: >
+        docker exec {{ certbot_container }} sh -c "
+        mkdir -p /etc/letsencrypt/live/localhost &&
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048
+        -keyout /etc/letsencrypt/live/localhost/privkey.pem
+        -out /etc/letsencrypt/live/localhost/fullchain.pem
+        -subj '/CN=localhost'"
+
+
+    - name: Template post-HTTPS Nginx config
+      template:
+        src: temp/afterCert
+        dest: /tmp/nginx-after.conf
+
+    - name: Copy post-HTTPS config into Nginx
+      command: docker cp /tmp/nginx-after.conf {{ nginx_container }}:/etc/nginx/nginx.conf
+
+    - name: Reload Nginx with HTTPS config
+      command: docker exec {{ nginx_container }} nginx -s reload

@@ -1,0 +1,44 @@
+./nginx
+./secrets
+./infra/terraform.tfstate.backup
+./infra/terraform.tfstate
+# OpenTofu / Terraform state and backup files
+*.tfstate
+*.tfstate.backup
+*.tfplan
+
+# Crash logs
+crash.log
+
+# CLI configuration
+.tofu/
+.terraform/     # if you also use terraform side-by-side
+
+# Sensitive files
+*.tfvars
+*.tfvars.json
+secrets.auto.tfvars
+*.pem
+*.key
+*.crt
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore generated plan outputs
+planfile
+*.out
+
+# Ignore editor/IDE metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-specific
+.DS_Store
+Thumbs.db

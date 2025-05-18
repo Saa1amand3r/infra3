@@ -1,0 +1,101 @@
+- name: Setup Dockerized Quotes application with HTTPS on AlmaLinux
+  hosts: eg_quotes_vm
+  become: true
+
+  vars:
+    repo_dir: /opt/quotes
+    nginx_container: quotes-eg-nginx-proxy-1
+    certbot_container: quotes-eg_certbot-1
+
+  tasks:
+    - name: Install required packages
+      dnf:
+        name: [docker, git, curl, firewalld]
+        state: present
+        update_cache: true
+
+    - name: Enable and start Docker
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Enable and start firewalld
+      service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open required firewall ports
+      firewalld:
+        port: "{{ item }}/tcp"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: [22, 80, 443]
+
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/latest/download/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Clone the repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dir }}"
+        version: main
+
+    - name: Start Docker containers
+      command: docker-compose up -d
+      args:
+        chdir: "{{ repo_dir }}"
+      register: compose_up
+      retries: 3
+      delay: 5
+      until: compose_up.rc == 0
+
+    - name: Wait for Nginx container to be up
+      shell: |
+        until docker exec {{ nginx_container }} nginx -v > /dev/null 2>&1; do
+          echo "Waiting for nginx container..."
+          sleep 5
+        done
+      retries: 10
+      delay: 5
+      register: nginx_ready
+      until: nginx_ready.rc == 0
+
+    - name: Template pre-HTTPS Nginx config
+      template:
+        src: templates/beforeHttps.j2
+        dest: /tmp/nginx-before.conf
+
+    - name: Copy pre-HTTPS config into Nginx
+      command: docker cp /tmp/nginx-before.conf {{ nginx_container }}:/etc/nginx/nginx.conf
+
+    - name: Reload Nginx with HTTP config
+      command: docker exec {{ nginx_container }} nginx -s reload
+
+    - name: Create folder for ACME challenge inside Nginx
+      command: docker exec {{ nginx_container }} sh -c "mkdir -p /var/www/certbot/.well-known/acme-challenge"
+
+    - name: Generate self-signed certificate
+      command: >
+        docker exec {{ certbot_container }} sh -c "
+        mkdir -p /etc/letsencrypt/live/localhost &&
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048
+        -keyout /etc/letsencrypt/live/localhost/privkey.pem
+        -out /etc/letsencrypt/live/localhost/fullchain.pem
+        -subj '/CN=localhost'"
+
+    - name: Template post-HTTPS Nginx config
+      template:
+        src: templates/afterHttps.j2
+        dest: /tmp/nginx-after.conf
+
+    - name: Copy post-HTTPS config into Nginx
+      command: docker cp /tmp/nginx-after.conf {{ nginx_container }}:/etc/nginx/nginx.conf
+
+    - name: Reload Nginx with HTTPS config
+      command: docker exec {{ nginx_container }} nginx -s reload

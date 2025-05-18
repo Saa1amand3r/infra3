@@ -1,0 +1,91 @@
+services:
+  eg_spring_app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: spring-quotes-app
+    ports:
+      - '8080:8080'
+    depends_on:
+      - postgres_quotes_db
+    networks:
+      - eg_network
+    
+
+  eg_react_app:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: react-frontend
+    depends_on:
+      - eg_spring_app
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - eg_network
+    command: sh -c "npm install && npm start"
+
+
+  postgres_quotes_db:
+    image: postgres:17.2-alpine
+    container_name: postgres-quotes-db
+    restart: always
+    environment:
+      POSTGRES_DB: quotesDb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5066:5432'
+    volumes:
+      - eg-db-data:/var/lib/postgresql/data
+    networks:
+      - eg_network
+  
+  eg-nginx-proxy:
+    image: nginx:alpine
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - certs:/etc/letsencrypt
+      - certbot:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - eg_spring_app
+      - eg_certbot
+    networks:
+      - eg_network
+
+  eg_certbot:
+    image: alpine:latest
+    volumes:
+      - certs:/etc/letsencrypt
+      - certbot:/var/www/certbot
+    command: /bin/sh -c "
+      apk add --no-cache openssl &&
+      mkdir -p /etc/letsencrypt/live/localhost &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout /etc/letsencrypt/live/localhost/privkey.pem \
+      -out /etc/letsencrypt/live/localhost/fullchain.pem \
+      -subj '/CN=localhost' &&
+      tail -f /dev/null"
+    networks:
+      - eg_network
+    depends_on:
+      - eg_spring_app
+
+volumes:
+  certs:
+  eg-db-data:
+  certbot:
+
+secrets:
+  eg-pg_password:
+    file: ./secrets/backend_eg-pg_password.txt
+
+networks:
+  eg_network:
+    driver: bridge
