@@ -6,13 +6,29 @@
     repo_dir: /opt/quotes
     nginx_container: quotes-eg-nginx-proxy-1
     certbot_container: quotes-eg_certbot-1
+    repo_url: https://github.com/Saa1amand3r/infra3.git
 
   tasks:
     - name: Install required packages
       dnf:
-        name: [docker, git, curl, firewalld]
+        name:
+          - dnf-plugins-core
+          - curl
+          - git
+          - firewalld
         state: present
         update_cache: true
+
+    - name: Add Docker CE repo
+      command: dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+    - name: Install Docker CE
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
 
     - name: Enable and start Docker
       service:
@@ -47,7 +63,7 @@
         version: main
 
     - name: Start Docker containers
-      command: docker-compose up -d
+      command: /usr/local/bin/docker-compose up -d
       args:
         chdir: "{{ repo_dir }}"
       register: compose_up
@@ -68,7 +84,7 @@
 
     - name: Template pre-HTTPS Nginx config
       template:
-        src: templates/beforeHttps.j2
+        src: temp/beforeCert
         dest: /tmp/nginx-before.conf
 
     - name: Copy pre-HTTPS config into Nginx
@@ -91,7 +107,7 @@
 
     - name: Template post-HTTPS Nginx config
       template:
-        src: templates/afterHttps.j2
+        src: temp/afterCert
         dest: /tmp/nginx-after.conf
 
     - name: Copy post-HTTPS config into Nginx
@@ -99,3 +115,4 @@
 
     - name: Reload Nginx with HTTPS config
       command: docker exec {{ nginx_container }} nginx -s reload
+

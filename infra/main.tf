@@ -158,14 +158,13 @@ resource "azurerm_linux_virtual_machine" "vm" {
     storage_account_type = "Standard_LRS"
   }
 
- source_image_reference {
-  publisher = "almalinux"
-  offer     = "almalinux"
-  sku       = "9_4"
-  version   = "latest"
-}
+   source_image_reference {
+    publisher = "almalinux"
+    offer     = "almalinux-x86_64"
+    sku       = "9-gen2"
+    version   = "9.4.2024080501"
+  }
 
-  custom_data = filebase64("${path.module}/init.sh")
    
 
 }
