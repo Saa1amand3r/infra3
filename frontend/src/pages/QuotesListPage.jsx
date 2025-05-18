@@ -11,7 +11,7 @@ const QuotesListPage = () => {
 
     useEffect(() => {
         const fetchQuotes = async () => {
-            const res = await axios.get("http://spring-quotes-app:8080/quotes");
+            const res = await axios.get("/api/quotes");
             setQuotes(res.data || []);
             setLoading(false);
         };
