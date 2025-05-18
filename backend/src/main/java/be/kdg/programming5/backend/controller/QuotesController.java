@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/quotes")
+@RequestMapping("/api/quotes")
 @Slf4j
 public class QuotesController {
     private final QuoteService quoteService;
