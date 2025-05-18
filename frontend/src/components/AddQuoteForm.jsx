@@ -10,7 +10,7 @@ const AddQuoteForm = ({setReloadQuotes}) => {
 
         try {
             console.log(quote);
-            await axios.post("/quotes", quote);
+            await axios.post("/api/quotes", quote);
             setQuoteText("");
             setAuthor("");
             setReloadQuotes(true);
