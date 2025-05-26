@@ -1,69 +1,22 @@
-- name: Setup Dockerized Quotes application with HTTPS on AlmaLinux
-  hosts: eg_quotes_vm
-  become: true
+- name: Local Deployment of Quotes app with HTTPS
+  hosts: localhost
+  connection: local
+  become: false
 
   vars:
-    repo_dir: /opt/quotes
-    nginx_container: quotes-eg-nginx-proxy-1
-    certbot_container: quotes-eg_certbot-1
-    repo_url: https://github.com/Saa1amand3r/infra3.git
+    repo_dir: "{{ lookup('env', 'PWD') }}"
+    nginx_container: infra3-eg-nginx-proxy-1
+    certbot_container: infra3-eg_certbot-1
 
   tasks:
-    - name: Install required packages
-      dnf:
-        name:
-          - dnf-plugins-core
-          - curl
-          - git
-          - firewalld
-        state: present
-        update_cache: true
-
-    - name: Add Docker CE repo
-      command: dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-
-    - name: Install Docker CE
-      dnf:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-        state: present
-
-    - name: Enable and start Docker
-      service:
-        name: docker
-        state: started
-        enabled: true
-
-    - name: Enable and start firewalld
-      service:
-        name: firewalld
-        state: started
-        enabled: true
-   
-    - name: Open required firewall ports
-      command: firewall-cmd --permanent --add-port={{ item }}/tcp
-      loop: [22, 80, 443]
-
-    - name: Reload firewalld
-      command: firewall-cmd --reload
-
-
-    - name: Install Docker Compose
-      get_url:
-        url: "https://github.com/docker/compose/releases/latest/download/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}"
-        dest: /usr/local/bin/docker-compose
-        mode: '0755'
-
-    - name: Clone the repository
-      git:
-        repo: "{{ repo_url }}"
-        dest: "{{ repo_dir }}"
-        version: main
+    - name: Ensure Docker Compose is installed
+      command: docker compose version
+      register: compose_check
+      failed_when: compose_check.rc != 0
+      changed_when: false
 
     - name: Start Docker containers
-      command: /usr/local/bin/docker-compose up -d
+      command: docker compose up -d
       args:
         chdir: "{{ repo_dir }}"
       register: compose_up
@@ -75,10 +28,10 @@
       shell: |
         until docker exec {{ nginx_container }} nginx -v > /dev/null 2>&1; do
           echo "Waiting for nginx container..."
-          sleep 5
+          sleep 3
         done
       retries: 10
-      delay: 5
+      delay: 3
       register: nginx_ready
       until: nginx_ready.rc == 0
 
@@ -105,6 +58,7 @@
         -out /etc/letsencrypt/live/localhost/fullchain.pem
         -subj '/CN=localhost'"
 
+
     - name: Template post-HTTPS Nginx config
       template:
         src: temp/afterCert
@@ -115,4 +69,3 @@
 
     - name: Reload Nginx with HTTPS config
       command: docker exec {{ nginx_container }} nginx -s reload
-

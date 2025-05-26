@@ -5,8 +5,8 @@
 
   vars:
     repo_dir: "{{ lookup('env', 'PWD') }}"
-    nginx_container: infra3proj-eg-nginx-proxy-1
-    certbot_container: infra3proj-eg_certbot-1
+    nginx_container: infra3-eg-nginx-proxy-1
+    certbot_container: infra3-eg_certbot-1
 
   tasks:
     - name: Ensure Docker Compose is installed
@@ -38,34 +38,49 @@
     - name: Template pre-HTTPS Nginx config
       template:
         src: temp/beforeCert
-        dest: /tmp/nginx-before.conf
+        dest: "{{ repo_dir }}/nginx-before.conf"
 
     - name: Copy pre-HTTPS config into Nginx
-      command: docker cp /tmp/nginx-before.conf {{ nginx_container }}:/etc/nginx/nginx.conf
+      command: docker cp "{{ repo_dir }}/nginx-before.conf" {{ nginx_container }}:/etc/nginx/nginx.conf
+
 
     - name: Reload Nginx with HTTP config
       command: docker exec {{ nginx_container }} nginx -s reload
 
     - name: Create folder for ACME challenge inside Nginx
-      command: docker exec {{ nginx_container }} sh -c "mkdir -p /var/www/certbot/.well-known/acme-challenge"
+      command: docker exec {{ nginx_container }} sh -c "mkdir -p ../../certbot/conf/live/eg-quotes.duckdns.org"
 
-    - name: Generate self-signed certificate
-      command: >
-        docker exec {{ certbot_container }} sh -c "
-        mkdir -p /etc/letsencrypt/live/localhost &&
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048
-        -keyout /etc/letsencrypt/live/localhost/privkey.pem
-        -out /etc/letsencrypt/live/localhost/fullchain.pem
-        -subj '/CN=localhost'"
+#    - name: Generate self-signed certificate
+#      command: >
+#        docker cp ../../certbot-acme/issue.sh acme-sh:/issue.sh && \
+#        docker exec acme-sh chmod +x /issue.sh && \
+#        docker exec acme-sh /issue.sh
 
+    - name: Run acme.sh script in container as root to avoid permission issues
+      shell: |
+        docker cp ../../certbot-acme/issue.sh acme-sh:/issue.sh
+        docker exec --user root acme-sh chmod +x /issue.sh
+        docker exec --user root acme-sh mkdir -p /acme.sh/live/eg-quotes.duckdns.org
+        docker exec --user root acme-sh /issue.sh
+      args:
+        executable: /bin/sh
+ 
 
+    - name: Copy certs to shared /certs folder via acme.sh install-cert
+      shell: |
+        docker exec --user root acme-sh acme.sh --install-cert -d eg-quotes.duckdns.org \
+        --fullchain-file /certs/fullchain.pem \
+        --key-file /certs/privkey.pem
+
+    
     - name: Template post-HTTPS Nginx config
       template:
         src: temp/afterCert
-        dest: /tmp/nginx-after.conf
+        dest: "{{ repo_dir }}/nginx-after.conf"
+
 
     - name: Copy post-HTTPS config into Nginx
-      command: docker cp /tmp/nginx-after.conf {{ nginx_container }}:/etc/nginx/nginx.conf
+      command: docker cp "{{ repo_dir }}/nginx-after.conf" {{ nginx_container }}:/etc/nginx/nginx.conf
 
     - name: Reload Nginx with HTTPS config
       command: docker exec {{ nginx_container }} nginx -s reload

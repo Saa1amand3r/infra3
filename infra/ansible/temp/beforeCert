@@ -31,7 +31,8 @@ http {
     }
 
     server {
-        listen 80 default_server;
+        listen 80; 
+        server_name eg-quotes.duckdns.org;
 
         # For Certbot ACME challenge
         location /.well-known/acme-challenge/ {
