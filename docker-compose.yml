@@ -46,6 +46,7 @@ services:
   
   eg-nginx-proxy:
     image: nginx:alpine
+    container_name: infra3-eg-nginx-proxy-1
     volumes:
       - ./nginx:/etc/nginx/conf.d
       - certs:/etc/letsencrypt:ro
