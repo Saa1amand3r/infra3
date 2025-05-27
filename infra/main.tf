@@ -118,13 +118,11 @@ resource "azurerm_subnet_network_security_group_association" "subnet_nsg" {
   network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
-resource "azurerm_public_ip" "main" {
-  name                = "eg-quotes-ip"
-  location            = var.location
-  resource_group_name = azurerm_resource_group.main.name
-  allocation_method   = "Static"
-  sku                 = "Basic"
+data "azurerm_public_ip" "main" {
+  name                = "infra3-deployment"
+  resource_group_name = "infra3"
 }
+
 
 resource "azurerm_network_interface" "nic" {
   name                = "eg-quotes-nic"
@@ -135,7 +133,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.main.id
+    public_ip_address_id          = data.azurerm_public_ip.main.id
   }
 }
 
