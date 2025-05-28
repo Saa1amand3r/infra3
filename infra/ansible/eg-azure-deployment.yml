@@ -102,17 +102,28 @@
 #        docker cp ../../certbot-acme/issue.sh acme-sh:/issue.sh && \
 #        docker exec acme-sh chmod +x /issue.sh && \
 #        docker exec acme-sh /issue.sh
+    - name: pwd command before running certbot
+      shell: pwd
+      register: result
+    - debug:
+        var: result.stdout
+    - name: Debug current repo and script path
+      shell: |
+        ls -l "{{ repo_dir }}/../certbot-acme/issue-dep.sh"
+      register: script_path_check
+      ignore_errors: true
+
+    - debug:
+        var: script_path_check.stdout_lines
 
     - name: Run acme.sh script in container as root to avoid permission issues
       shell: |
-        docker cp ../../certbot-acme/issue-dep.sh acme-sh:/issue.sh
+        docker cp {{ repo_dir }}/certbot-acme/issue-dep.sh acme-sh:/issue.sh
         docker exec --user root acme-sh chmod +x /issue.sh
         docker exec --user root acme-sh mkdir -p /acme.sh/live/eg-quotes-dep.duckdns.org
         docker exec --user root acme-sh /issue.sh
       args:
         executable: /bin/sh
- 
-
     - name: Copy certs to shared /certs folder via acme.sh install-cert
       shell: |
         docker exec --user root acme-sh acme.sh --install-cert -d eg-quotes-dep.duckdns.org \

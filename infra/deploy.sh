@@ -20,10 +20,9 @@ echo "[+] Public IP: $IP"
 
 # Step 3: Write Ansible inventory file
 INVENTORY_FILE="inventory.ini"
-echo "[eg_quotes_vm]" > $INVENTORY_FILE
-echo "$IP ansible_user=azureuser ansible_ssh_private_key_file=./id_rsa ansible_python_interpreter=/usr/bin/python3" >> $INVENTORY_FILE
+echo "[eg_quotes_vm]" >$INVENTORY_FILE
+echo "$IP ansible_user=azureuser ansible_ssh_private_key_file=./id_rsa ansible_python_interpreter=/usr/bin/python3" >>$INVENTORY_FILE
 
 # Step 4: Run the Ansible playbook
 echo "[+] Running Ansible playbook..."
-ansible-playbook -i $INVENTORY_FILE ansible/eg-azure-deployment.yml
-
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $INVENTORY_FILE ansible/eg-azure-deployment.yml
